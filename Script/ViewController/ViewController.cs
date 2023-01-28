@@ -40,6 +40,8 @@ public class ViewController : MonoBehaviour
         if (inAnimation.mod == AnimationMod.None)
         {
             m_CanvasGroup.alpha = 0;
+            transform.localPosition = Vector3.zero;
+            transform.localScale = Vector3.one;
 
             gameObject.SetActive(true);
             m_CanvasGroup.DOFade(1, 0).SetDelay(inAnimation.delay);
@@ -53,7 +55,8 @@ public class ViewController : MonoBehaviour
 
             gameObject.SetActive(true);
             Sequence sequence = DOTween.Sequence();
-            sequence.Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
+            sequence.SetDelay(inAnimation.delay)
+                    .Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
                     .Insert(0, transform.DOLocalMove(inAnimation.end.position, inAnimation.duration))
                     .Insert(0, transform.DOScale(inAnimation.end.scale, inAnimation.duration))
                     .OnComplete(() =>
@@ -69,8 +72,10 @@ public class ViewController : MonoBehaviour
         if (outAnimation.mod == AnimationMod.None)
         {
             m_CanvasGroup.alpha = 1;
+            transform.localPosition = Vector3.zero;
+            transform.localScale = Vector3.one;
 
-            m_CanvasGroup.DOFade(0, 0).SetDelay(inAnimation.duration).OnComplete(() =>
+            m_CanvasGroup.DOFade(0, 0).SetDelay(outAnimation.delay).OnComplete(() =>
             {
                 onEnter?.Invoke();
                 gameObject.SetActive(false);
@@ -78,12 +83,13 @@ public class ViewController : MonoBehaviour
         }
         else
         {
-            m_CanvasGroup.alpha = inAnimation.start.alpha;
-            transform.localPosition = inAnimation.start.position;
-            transform.localScale = inAnimation.start.scale;
+            m_CanvasGroup.alpha = outAnimation.start.alpha;
+            transform.localPosition = outAnimation.start.position;
+            transform.localScale = outAnimation.start.scale;
 
             Sequence sequence = DOTween.Sequence();
-            sequence.Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
+            sequence.SetDelay(outAnimation.delay)
+                    .Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
                     .Insert(0, transform.DOLocalMove(outAnimation.end.position, outAnimation.duration))
                     .Insert(0, transform.DOScale(outAnimation.end.scale, outAnimation.duration))
                     .OnComplete(() =>
