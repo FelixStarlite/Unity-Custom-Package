@@ -35,68 +35,84 @@ public class ViewController : MonoBehaviour
     }
 
     [Button]
-    public void ShowView()
+    public void ShowView(bool isFast = false)
     {
-        if (inAnimation.mod == AnimationMod.None)
+        if (isFast)
         {
-            m_CanvasGroup.alpha = 0;
-            transform.localPosition = Vector3.zero;
-            transform.localScale = Vector3.one;
-
             gameObject.SetActive(true);
-            m_CanvasGroup.DOFade(1, 0).SetDelay(inAnimation.delay);
             onEnter?.Invoke();
         }
         else
         {
-            m_CanvasGroup.alpha = inAnimation.start.alpha;
-            transform.localPosition = inAnimation.start.position;
-            transform.localScale = inAnimation.start.scale;
+            if (inAnimation.mod == AnimationMod.None)
+            {
+                m_CanvasGroup.alpha = 0;
+                transform.localPosition = Vector3.zero;
+                transform.localScale = Vector3.one;
 
-            gameObject.SetActive(true);
-            Sequence sequence = DOTween.Sequence();
-            sequence.SetDelay(inAnimation.delay)
-                    .Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
-                    .Insert(0, transform.DOLocalMove(inAnimation.end.position, inAnimation.duration))
-                    .Insert(0, transform.DOScale(inAnimation.end.scale, inAnimation.duration))
-                    .OnComplete(() =>
-                    {
-                        onEnter?.Invoke();
-                    });
+                gameObject.SetActive(true);
+                m_CanvasGroup.DOFade(1, 0).SetDelay(inAnimation.delay);
+                onEnter?.Invoke();
+            }
+            else
+            {
+                m_CanvasGroup.alpha = inAnimation.start.alpha;
+                transform.localPosition = inAnimation.start.position;
+                transform.localScale = inAnimation.start.scale;
+
+                gameObject.SetActive(true);
+                Sequence sequence = DOTween.Sequence();
+                sequence.SetDelay(inAnimation.delay)
+                        .Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
+                        .Insert(0, transform.DOLocalMove(inAnimation.end.position, inAnimation.duration))
+                        .Insert(0, transform.DOScale(inAnimation.end.scale, inAnimation.duration))
+                        .OnComplete(() =>
+                        {
+                            onEnter?.Invoke();
+                        });
+            }
         }
     }
 
     [Button]
-    public void HideView()
+    public void HideView(bool isFast = false)
     {
-        if (outAnimation.mod == AnimationMod.None)
+        if (isFast)
         {
-            m_CanvasGroup.alpha = 1;
-            transform.localPosition = Vector3.zero;
-            transform.localScale = Vector3.one;
-
-            m_CanvasGroup.DOFade(0, 0).SetDelay(outAnimation.delay).OnComplete(() =>
-            {
-                onEnter?.Invoke();
-                gameObject.SetActive(false);
-            });
+            gameObject.SetActive(false);
+            onExit?.Invoke();
         }
         else
         {
-            m_CanvasGroup.alpha = outAnimation.start.alpha;
-            transform.localPosition = outAnimation.start.position;
-            transform.localScale = outAnimation.start.scale;
+            if (outAnimation.mod == AnimationMod.None)
+            {
+                m_CanvasGroup.alpha = 1;
+                transform.localPosition = Vector3.zero;
+                transform.localScale = Vector3.one;
 
-            Sequence sequence = DOTween.Sequence();
-            sequence.SetDelay(outAnimation.delay)
-                    .Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
-                    .Insert(0, transform.DOLocalMove(outAnimation.end.position, outAnimation.duration))
-                    .Insert(0, transform.DOScale(outAnimation.end.scale, outAnimation.duration))
-                    .OnComplete(() =>
-                    {
-                        onExit?.Invoke();
-                        gameObject.SetActive(false);
-                    });
+                m_CanvasGroup.DOFade(0, 0).SetDelay(outAnimation.delay).OnComplete(() =>
+                {
+                    onExit?.Invoke();
+                    gameObject.SetActive(false);
+                });
+            }
+            else
+            {
+                m_CanvasGroup.alpha = outAnimation.start.alpha;
+                transform.localPosition = outAnimation.start.position;
+                transform.localScale = outAnimation.start.scale;
+
+                Sequence sequence = DOTween.Sequence();
+                sequence.SetDelay(outAnimation.delay)
+                        .Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
+                        .Insert(0, transform.DOLocalMove(outAnimation.end.position, outAnimation.duration))
+                        .Insert(0, transform.DOScale(outAnimation.end.scale, outAnimation.duration))
+                        .OnComplete(() =>
+                        {
+                            onExit?.Invoke();
+                            gameObject.SetActive(false);
+                        });
+            }
         }
     }
 }

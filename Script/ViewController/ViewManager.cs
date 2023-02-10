@@ -33,6 +33,12 @@ public class ViewManager : MonoBehaviour
         }
     }
 
+    private void Start()
+    {
+        currentView = startView.GetComponent<ViewController>();
+        currentView.ShowView(true);
+    }
+
     // 使用物件呼叫
     public void ToView(GameObject target)
     {
@@ -61,11 +67,5 @@ public class ViewManager : MonoBehaviour
             view.ShowView();
             currentView = view;
         }
-    }
-
-    private void Start()
-    {
-        currentView = startView.GetComponent<ViewController>();
-        currentView.ShowView();
     }
 }
