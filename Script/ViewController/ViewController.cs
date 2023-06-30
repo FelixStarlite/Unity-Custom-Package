@@ -10,10 +10,10 @@ using System;
 public class ViewController : MonoBehaviour
 {
     [TabGroup("Tabs", "In Animation"), HideLabel]
-    public ViewAnimation inAnimation = new ViewAnimation();
+    public ViewAnimation inAnimation;
 
     [TabGroup("Tabs", "Out Animation"), HideLabel]
-    public ViewAnimation outAnimation = new ViewAnimation();
+    public ViewAnimation outAnimation;
 
     [TabGroup("Tabs/In Animation/SupTab", "Start Enter")]
     [GUIColor(0, 1, 0)]
@@ -34,10 +34,6 @@ public class ViewController : MonoBehaviour
     private CanvasGroup m_CanvasGroup;
 
     private DG.Tweening.Sequence sequence;
-
-    private void Start()
-    {
-    }
 
     public bool IsPlaying()
     {
@@ -90,6 +86,7 @@ public class ViewController : MonoBehaviour
                         .Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
                         .Insert(0, transform.DOLocalMove(inAnimation.end.position, inAnimation.duration))
                         .Insert(0, transform.DOScale(inAnimation.end.scale, inAnimation.duration))
+                        .SetEase(inAnimation.ease)
                         .OnComplete(() =>
                         {
                             OnEnterFinish?.Invoke();
@@ -143,6 +140,7 @@ public class ViewController : MonoBehaviour
                         .Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
                         .Insert(0, transform.DOLocalMove(outAnimation.end.position, outAnimation.duration))
                         .Insert(0, transform.DOScale(outAnimation.end.scale, outAnimation.duration))
+                        .SetEase(outAnimation.ease)
                         .OnComplete(() =>
                         {
                             OnExitFinish?.Invoke();
@@ -150,5 +148,12 @@ public class ViewController : MonoBehaviour
                         });
             }
         }
+    }
+
+    private void Reset()
+    {
+        RectTransform rt = transform as RectTransform;
+        Rect rect = rt.rect;
+        inAnimation = new ViewAnimation((int)rect.width, (int)rect.height);
     }
 }

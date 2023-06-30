@@ -1,3 +1,4 @@
+using DG.Tweening;
 using Sirenix.OdinInspector;
 using System;
 using System.Collections;
@@ -11,6 +12,8 @@ public enum AnimationMod
     OutFade,
     InScale,
     OutScale,
+    InRight,
+    OutRight
 }
 
 [Serializable]
@@ -34,11 +37,22 @@ public class ViewAnimation
     [HideIf("mod", AnimationMod.None)]
     public float duration = 3;
 
+    [HideIf("mod", AnimationMod.None)]
+    public Ease ease = Ease.Linear;
+
     [HideIf("mod", AnimationMod.None), HideLabel, Title("Start")]
     public AnimationData start;
 
     [HideIf("mod", AnimationMod.None), HideLabel, Title("End")]
     public AnimationData end;
+
+    private int screenWidth, screenHeigth;
+
+    public ViewAnimation(int width, int height)
+    {
+        screenWidth = width;
+        screenHeigth = height;
+    }
 
     private void ChangeValue()
     {
@@ -85,6 +99,28 @@ public class ViewAnimation
                     end.alpha = 0;
                     end.position = Vector3.zero;
                     end.scale = new Vector3(1.2f, 1.2f, 1.2f);
+                }
+                break;
+
+            case AnimationMod.InRight:
+                {
+                    start.alpha = 1f;
+                    start.position = new Vector3(screenWidth, 0, 0);
+                    start.scale = Vector3.one;
+                    end.alpha = 1f;
+                    end.position = Vector3.zero;
+                    end.scale = Vector3.one;
+                }
+                break;
+
+            case AnimationMod.OutRight:
+                {
+                    start.alpha = 1f;
+                    start.position = Vector3.zero;
+                    start.scale = Vector3.one;
+                    end.alpha = 0;
+                    end.position = new Vector3(screenWidth, 0, 0);
+                    end.scale = Vector3.one;
                 }
                 break;
         }
