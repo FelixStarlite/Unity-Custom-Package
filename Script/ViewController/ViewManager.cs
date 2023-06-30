@@ -30,6 +30,7 @@ public class ViewManager : MonoBehaviour
             if (viewController == null) continue;
 
             views.Add(viewController.name, viewController);
+            viewController.gameObject.SetActive(false);
         }
     }
 
@@ -44,10 +45,10 @@ public class ViewManager : MonoBehaviour
     {
         if (views.TryGetValue(target.name, out ViewController view))
         {
+            if (currentView.name == target.name || currentView.IsPlaying()) return;
+
             if (currentView != null)
-            {
                 currentView.HideView();
-            }
 
             view.ShowView();
             currentView = view;
@@ -59,10 +60,10 @@ public class ViewManager : MonoBehaviour
     {
         if (views.TryGetValue(target, out ViewController view))
         {
+            if (currentView.name == target || currentView.IsPlaying()) return;
+
             if (currentView != null)
-            {
                 currentView.HideView();
-            }
 
             view.ShowView();
             currentView = view;

@@ -4,46 +4,66 @@ using UnityEngine;
 using DG.Tweening;
 using UnityEngine.Events;
 using Sirenix.OdinInspector;
-using static ViewController;
 using System;
 
 [RequireComponent(typeof(CanvasGroup))]
 public class ViewController : MonoBehaviour
 {
-    [TabGroup("In Animation"), HideLabel]
+    [TabGroup("Tabs", "In Animation"), HideLabel]
     public ViewAnimation inAnimation = new ViewAnimation();
 
-    [TabGroup("Out Animation"), HideLabel]
+    [TabGroup("Tabs", "Out Animation"), HideLabel]
     public ViewAnimation outAnimation = new ViewAnimation();
 
-    [TabGroup("In Animation")]
-    public UnityEvent onEnter;
+    [TabGroup("Tabs/In Animation/SupTab", "Start Enter")]
+    [GUIColor(0, 1, 0)]
+    public UnityEvent OnStartEnter;
 
-    [TabGroup("Out Animation")]
-    public UnityEvent onExit;
+    [TabGroup("Tabs/In Animation/SupTab", "Enter Finish")]
+    [GUIColor(0, 1, 0)]
+    public UnityEvent OnEnterFinish;
+
+    [TabGroup("Tabs/Out Animation/SupTab", "Start Exit")]
+    [GUIColor(1, 0.6f, 0.4f)]
+    public UnityEvent OnStartExit;
+
+    [TabGroup("Tabs/Out Animation/SupTab", "Exit Finish")]
+    [GUIColor(1, 0.6f, 0.4f)]
+    public UnityEvent OnExitFinish;
 
     private CanvasGroup m_CanvasGroup;
 
-    private void Awake()
-    {
-        m_CanvasGroup = GetComponent<CanvasGroup>();
-        gameObject.SetActive(false);
-    }
+    private DG.Tweening.Sequence sequence;
 
     private void Start()
     {
     }
 
+    public bool IsPlaying()
+    {
+        if (sequence != null)
+            return sequence.IsPlaying();
+
+        return false;
+    }
+
     [Button]
     public void ShowView(bool isFast = false)
     {
+        if (sequence != null)
+            sequence.Kill();
+
         if (isFast)
         {
             gameObject.SetActive(true);
-            onEnter?.Invoke();
+            OnStartEnter?.Invoke();
+            OnEnterFinish?.Invoke();
         }
         else
         {
+            if (m_CanvasGroup == null)
+                m_CanvasGroup = GetComponent<CanvasGroup>();
+
             if (inAnimation.mod == AnimationMod.None)
             {
                 m_CanvasGroup.alpha = 0;
@@ -51,8 +71,11 @@ public class ViewController : MonoBehaviour
                 transform.localScale = Vector3.one;
 
                 gameObject.SetActive(true);
-                m_CanvasGroup.DOFade(1, 0).SetDelay(inAnimation.delay);
-                onEnter?.Invoke();
+                OnStartEnter?.Invoke();
+                sequence = DOTween.Sequence();
+                sequence.SetDelay(inAnimation.delay)
+                        .AppendCallback(() => m_CanvasGroup.alpha = 1);
+                OnEnterFinish?.Invoke();
             }
             else
             {
@@ -61,14 +84,15 @@ public class ViewController : MonoBehaviour
                 transform.localScale = inAnimation.start.scale;
 
                 gameObject.SetActive(true);
-                Sequence sequence = DOTween.Sequence();
+                OnStartEnter?.Invoke();
+                sequence = DOTween.Sequence();
                 sequence.SetDelay(inAnimation.delay)
                         .Append(m_CanvasGroup.DOFade(inAnimation.end.alpha, inAnimation.duration))
                         .Insert(0, transform.DOLocalMove(inAnimation.end.position, inAnimation.duration))
                         .Insert(0, transform.DOScale(inAnimation.end.scale, inAnimation.duration))
                         .OnComplete(() =>
                         {
-                            onEnter?.Invoke();
+                            OnEnterFinish?.Invoke();
                         });
             }
         }
@@ -77,24 +101,35 @@ public class ViewController : MonoBehaviour
     [Button]
     public void HideView(bool isFast = false)
     {
+        if (sequence != null)
+            sequence.Kill();
+
         if (isFast)
         {
             gameObject.SetActive(false);
-            onExit?.Invoke();
+            OnStartExit?.Invoke();
+            OnExitFinish?.Invoke();
         }
         else
         {
+            if (m_CanvasGroup == null)
+                m_CanvasGroup = GetComponent<CanvasGroup>();
+
             if (outAnimation.mod == AnimationMod.None)
             {
                 m_CanvasGroup.alpha = 1;
                 transform.localPosition = Vector3.zero;
                 transform.localScale = Vector3.one;
 
-                m_CanvasGroup.DOFade(0, 0).SetDelay(outAnimation.delay).OnComplete(() =>
-                {
-                    onExit?.Invoke();
-                    gameObject.SetActive(false);
-                });
+                OnStartExit?.Invoke();
+                sequence = DOTween.Sequence();
+                sequence.SetDelay(outAnimation.delay)
+                        .AppendCallback(() =>
+                        {
+                            m_CanvasGroup.alpha = 0;
+                            OnExitFinish?.Invoke();
+                            gameObject.SetActive(false);
+                        });
             }
             else
             {
@@ -102,14 +137,15 @@ public class ViewController : MonoBehaviour
                 transform.localPosition = outAnimation.start.position;
                 transform.localScale = outAnimation.start.scale;
 
-                Sequence sequence = DOTween.Sequence();
+                OnStartExit?.Invoke();
+                sequence = DOTween.Sequence();
                 sequence.SetDelay(outAnimation.delay)
                         .Append(m_CanvasGroup.DOFade(outAnimation.end.alpha, outAnimation.duration))
                         .Insert(0, transform.DOLocalMove(outAnimation.end.position, outAnimation.duration))
                         .Insert(0, transform.DOScale(outAnimation.end.scale, outAnimation.duration))
                         .OnComplete(() =>
                         {
-                            onExit?.Invoke();
+                            OnExitFinish?.Invoke();
                             gameObject.SetActive(false);
                         });
             }

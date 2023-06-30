@@ -62,7 +62,7 @@ public class ViewAnimation
                     start.scale = Vector3.one;
                     end.alpha = 0;
                     end.position = Vector3.zero;
-                    end.scale = new Vector3(1.2f, 1.2f, 1.2f);
+                    end.scale = Vector3.one;
                 }
                 break;
 
