@@ -4,34 +4,81 @@ using System;
 using System.IO;
 using UnityEngine.Networking;
 using Sirenix.OdinInspector;
+using System.Collections.Generic;
 
 public class Screenshot : MonoBehaviour
 {
+    public struct ShortData
+    {
+        public string fileName;
+        public int photoNum;
+        public byte[] bytes;
+    }
+
+    public enum LocalPathMod
+    {
+        StreamingAssetsPath,
+        CustomPath
+    }
+
+    public static Screenshot Instance
+    {
+        get
+        {
+            if (instance == null)
+                instance = FindObjectOfType<Screenshot>();
+            return instance;
+        }
+    }
+
+    private static Screenshot instance;
+
     public event Action<Texture2D> OnTaked;
 
     public event Action<bool, string> OnUploaded;
 
-    public bool isPreview = false;  // 打開選項的話，截圖並不會馬上上傳或儲存
+    public Camera cam;  // 如果有選擇Camera的話就截圖這個Camera的畫面
+    public int targetWidth;
+    public int targetHeight;
+
+    public bool isSequence = false;  // 打開選項的話，截圖並不會馬上上傳或儲存
 
     [Title("Local")]
     public bool isLocal = false;
 
     [ShowIf("isLocal")]
+    public LocalPathMod localPathMod;
+
+    [ShowIf("isLocal"), ShowIf("localPathMod", LocalPathMod.CustomPath)]
     public string localPath;
 
     [Title("Online")]
     public bool isOnline = false;
 
     [ShowIf("isOnline")]
-    public string url;
+    public string url = "https://starlitetw.com/api/qr_get_photo_upload_photo";
 
     [ShowIf("isOnline")]
     public string actid;
 
-    private string fileName;
+    private List<ShortData> shortDatas = new List<ShortData>();
+    private ShortData shortData;
+    private string path;
     private Texture2D tex;
 
     private string logPath = Application.streamingAssetsPath + "/Debug.txt";
+
+    private void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+
+        if (instance != this)
+            Destroy(gameObject);
+    }
 
     private void Start()
     {
@@ -51,9 +98,12 @@ public class Screenshot : MonoBehaviour
         StartCoroutine(Shot());
     }
 
-    public void Take(string fileName)
+    public void Take(string fileName, int photoNum = 1)
     {
-        this.fileName = fileName;
+        shortData = new ShortData();
+        shortData.fileName = fileName;
+        shortData.photoNum = photoNum;
+
         StartCoroutine(Shot());
     }
 
@@ -62,54 +112,92 @@ public class Screenshot : MonoBehaviour
     /// </summary>
     public void Save()
     {
-        if (String.IsNullOrEmpty(fileName))
+        foreach (ShortData data in shortDatas)
         {
-            Debug.LogError("檔名不能為Null或空白");
-            return;
+            if (String.IsNullOrEmpty(data.fileName))
+            {
+                Debug.LogError("檔名不能為Null或空白");
+                continue;
+            }
+
+            if (isLocal)
+            {
+                LocalSave(data.fileName, data.bytes);
+            }
+
+            if (isOnline)
+            {
+                StartCoroutine(WebSave(data.fileName, data.bytes, data.photoNum));
+            }
         }
 
-        byte[] bytes = tex.EncodeToJPG();
+        shortDatas.Clear();
+    }
 
-        if (isLocal)
-        {
-            LocalSave(fileName, bytes);
-        }
-
-        if (isOnline)
-        {
-            StartCoroutine(WebSave(fileName, bytes));
-        }
+    /// <summary>
+    /// 清除序列
+    /// </summary>
+    public void ClearSeqence()
+    {
+        shortDatas.Clear();
     }
 
     private IEnumerator Shot()
     {
-        Rect rect = new Rect(0, 0, 1920, 1080);
-        tex = new Texture2D((int)rect.width, (int)rect.height, TextureFormat.RGB24, true);
+        ClearTexture();
+
+        if (cam == null)
+            cam = Camera.main;
+
         yield return new WaitForEndOfFrame();
 
-        tex.ReadPixels(rect, 0, 0);
+        RenderTexture rt = new RenderTexture(targetWidth, targetHeight, 24);
+        cam.targetTexture = rt;
+        cam.Render();
+        RenderTexture.active = rt;
+        tex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
+
+        tex.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
         tex.Apply();
+
+        shortData.bytes = tex.EncodeToJPG();
+        shortDatas.Add(shortData);
+
+        Debug.Log("Screenshot captured!");
+
+        RenderTexture.active = null;
+        cam.targetTexture = null;
+        Destroy(rt);
 
         OnTaked?.Invoke(tex);
 
-        if (isPreview) yield break;
-
-        if (isLocal || isOnline)
-            Save();
+        if (!isSequence)
+        {
+            if (isLocal || isOnline)
+                Save();
+        }
     }
 
     private void LocalSave(string fileName, byte[] bytes)
     {
-        string path = Path.Combine(localPath, fileName + ".jpg");
+        if (localPathMod == LocalPathMod.StreamingAssetsPath)
+        {
+            path = Path.Combine(Application.streamingAssetsPath, fileName + ".jpg");
+        }
+        else if (localPathMod == LocalPathMod.CustomPath)
+        {
+            path = Path.Combine(localPath, fileName + ".jpg");
+        }
+
         File.WriteAllBytes(path, bytes);
     }
 
-    private IEnumerator WebSave(string fileName, byte[] bytes)
+    private IEnumerator WebSave(string fileName, byte[] bytes, int photoNum)
     {
         WWWForm form = new WWWForm();
         form.AddField("actid", actid);
         form.AddField("photoid", fileName);
-        form.AddField("photonum", 1);
+        form.AddField("photonum", photoNum);
         form.AddBinaryData("upload_photo", bytes, "image/jpg");
 
         using (UnityWebRequest www = UnityWebRequest.Post(url, form))
@@ -136,6 +224,15 @@ public class Screenshot : MonoBehaviour
 
                 OnUploaded?.Invoke(true, "Upload Complete.");
             }
+        }
+    }
+
+    private void ClearTexture()
+    {
+        if (tex != null)
+        {
+            Destroy(tex);
+            tex = null;
         }
     }
 }
