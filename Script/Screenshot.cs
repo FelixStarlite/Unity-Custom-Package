@@ -5,9 +5,11 @@ using System.IO;
 using UnityEngine.Networking;
 using Sirenix.OdinInspector;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 
 public class Screenshot : MonoBehaviour
 {
+    [Serializable]
     public struct ShortData
     {
         public string fileName;
@@ -27,6 +29,12 @@ public class Screenshot : MonoBehaviour
         {
             if (instance == null)
                 instance = FindObjectOfType<Screenshot>();
+            if (instance == null)
+            {
+                GameObject go = new GameObject(typeof(Screenshot).Name);
+                instance = go.AddComponent<Screenshot>();
+                DontDestroyOnLoad(go);
+            }
             return instance;
         }
     }
@@ -40,8 +48,8 @@ public class Screenshot : MonoBehaviour
     public Camera cam;  // 如果有選擇Camera的話就截圖這個Camera的畫面
     public int targetWidth;
     public int targetHeight;
-
-    public bool isSequence = false;  // 打開選項的話，截圖並不會馬上上傳或儲存
+    public int number = 1;
+    public bool isAutoPrint = true;
 
     [Title("Local")]
     public bool isLocal = false;
@@ -65,6 +73,7 @@ public class Screenshot : MonoBehaviour
     private ShortData shortData;
     private string path;
     private Texture2D tex;
+    private IEnumerator sequenceing;
 
     private string logPath = Application.streamingAssetsPath + "/Debug.txt";
 
@@ -91,6 +100,9 @@ public class Screenshot : MonoBehaviour
                 sw.WriteLine("=====RecodeLog=====");
             }
         }
+
+        targetWidth = (targetWidth == 0) ? Screen.width : targetWidth;
+        targetHeight = (targetHeight == 0) ? Screen.height : targetHeight;
     }
 
     public void Take()
@@ -98,11 +110,10 @@ public class Screenshot : MonoBehaviour
         StartCoroutine(Shot());
     }
 
-    public void Take(string fileName, int photoNum = 1)
+    public void Take(string fileName)
     {
         shortData = new ShortData();
         shortData.fileName = fileName;
-        shortData.photoNum = photoNum;
 
         StartCoroutine(Shot());
     }
@@ -110,35 +121,42 @@ public class Screenshot : MonoBehaviour
     /// <summary>
     /// 上傳或儲存截圖
     /// </summary>
-    public void Save()
+    public void Print()
     {
-        foreach (ShortData data in shortDatas)
+        if (shortDatas.Count >= number)
         {
-            if (String.IsNullOrEmpty(data.fileName))
+            Debug.Log("Upload Texture : " + shortDatas.Count);
+            sequenceing = Sequenceing();
+            StartCoroutine(sequenceing);
+        }
+    }
+
+    public void ClearShortDatas()
+    {
+        shortDatas.Clear();
+    }
+
+    private IEnumerator Sequenceing()
+    {
+        for (int i = 0; i < shortDatas.Count; i++)
+        {
+            if (String.IsNullOrEmpty(shortDatas[i].fileName))
             {
                 Debug.LogError("檔名不能為Null或空白");
-                continue;
+                yield break;
             }
 
             if (isLocal)
             {
-                LocalSave(data.fileName, data.bytes);
+                LocalSave(shortDatas[i].fileName, shortDatas[i].bytes);
             }
 
             if (isOnline)
             {
-                StartCoroutine(WebSave(data.fileName, data.bytes, data.photoNum));
+                yield return StartCoroutine(WebSave(shortDatas[i].fileName, shortDatas[i].bytes, shortDatas[i].photoNum));
             }
         }
 
-        shortDatas.Clear();
-    }
-
-    /// <summary>
-    /// 清除序列
-    /// </summary>
-    public void ClearSeqence()
-    {
         shortDatas.Clear();
     }
 
@@ -161,6 +179,7 @@ public class Screenshot : MonoBehaviour
         tex.Apply();
 
         shortData.bytes = tex.EncodeToJPG();
+        shortData.photoNum = shortDatas.Count + 1;
         shortDatas.Add(shortData);
 
         Debug.Log("Screenshot captured!");
@@ -171,11 +190,8 @@ public class Screenshot : MonoBehaviour
 
         OnTaked?.Invoke(tex);
 
-        if (!isSequence)
-        {
-            if (isLocal || isOnline)
-                Save();
-        }
+        if (isAutoPrint)
+            Print();
     }
 
     private void LocalSave(string fileName, byte[] bytes)
@@ -213,6 +229,11 @@ public class Screenshot : MonoBehaviour
                 Debug.Log(www.error);
 
                 OnUploaded?.Invoke(false, www.error);
+
+                // 連線有問題，就將陣列清空並停止序列
+                shortDatas.Clear();
+
+                StopCoroutine(sequenceing);
             }
             else
             {
