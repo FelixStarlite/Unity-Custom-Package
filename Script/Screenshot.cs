@@ -29,6 +29,7 @@ public class Screenshot : MonoBehaviour
         {
             if (instance == null)
                 instance = FindObjectOfType<Screenshot>();
+
             if (instance == null)
             {
                 GameObject go = new GameObject(typeof(Screenshot).Name);
@@ -148,7 +149,7 @@ public class Screenshot : MonoBehaviour
 
             if (isLocal)
             {
-                LocalSave(shortDatas[i].fileName, shortDatas[i].bytes);
+                LocalSave(shortDatas[i].fileName + "_" + i, shortDatas[i].bytes);
             }
 
             if (isOnline)
@@ -162,19 +163,50 @@ public class Screenshot : MonoBehaviour
 
     private IEnumerator Shot()
     {
+        yield return new WaitForEndOfFrame();
+        if (cam == null)
+        {
+            ViewCapture();
+        }
+        else
+        {
+            CameraCapture();
+        }
+    }
+
+    private void ViewCapture()
+    {
+        ClearTexture();
+        
+        tex = ScreenCapture.CaptureScreenshotAsTexture();
+
+        _data.bytes = tex.EncodeToJPG();
+        _data.photoNum = _datas.Count + 1;
+        _datas.Add(_data);
+
+        onCaptured?.Invoke(tex);
+
+        if (isAutoPrint)
+            Print();   
+    }
+
+    private void CameraCapture()
+    {
         ClearTexture();
 
-        if (cam == null)
-            cam = Camera.main;
-
-        yield return new WaitForEndOfFrame();
+        if (targetWidth == 0 || targetHeight == 0)
+        {
+            targetWidth = Screen.width;
+            targetHeight = Screen.height;
+        }
 
         RenderTexture rt = new RenderTexture(targetWidth, targetHeight, 24);
+
         cam.targetTexture = rt;
         cam.Render();
         RenderTexture.active = rt;
-        tex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
 
+        tex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
         tex.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
         tex.Apply();
 
@@ -198,11 +230,11 @@ public class Screenshot : MonoBehaviour
     {
         if (localPathMod == LocalPathMod.StreamingAssetsPath)
         {
-            path = Path.Combine(Application.streamingAssetsPath, fileName + ".jpg");
+            path = Path.Combine(Application.streamingAssetsPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
         }
         else if (localPathMod == LocalPathMod.CustomPath)
         {
-            path = Path.Combine(localPath, fileName + ".jpg");
+            path = Path.Combine(localPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
         }
 
         File.WriteAllBytes(path, bytes);
@@ -210,9 +242,10 @@ public class Screenshot : MonoBehaviour
 
     private IEnumerator WebSave(string fileName, byte[] bytes, int photoNum)
     {
+        Debug.Log("actid : " + actid + "photoid : " + fileName + " photonum : " + photoNum);
         WWWForm form = new WWWForm();
         form.AddField("actid", actid);
-        form.AddField("photoid", fileName);
+        form.AddField("photoid", actid + "_" + fileName);
         form.AddField("photonum", photoNum);
         form.AddBinaryData("upload_photo", bytes, "image/jpg");
 
@@ -243,7 +276,7 @@ public class Screenshot : MonoBehaviour
                 }
                 Debug.Log("Upload Complete.");
 
-                OnUploaded?.Invoke(true, "Upload Complete.");
+                OnUploaded?.Invoke(true, actid + "_" + fileName);
             }
         }
     }
