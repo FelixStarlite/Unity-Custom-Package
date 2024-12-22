@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
-
+/*將該腳本放在Canvas底下即可*/
 public class CanvasScale : MonoBehaviour
 {
     public Vector2 referenceResolution;

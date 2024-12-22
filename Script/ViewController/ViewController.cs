@@ -33,7 +33,18 @@ public class ViewController : MonoBehaviour
 
     private CanvasGroup m_CanvasGroup;
 
-    private DG.Tweening.Sequence sequence;
+    private Vector3 originPosition;
+    private Vector3 originQuaternios;
+    private Vector3 originScale;
+    private Sequence sequence;
+
+    public void Init()
+    {
+        gameObject.SetActive(false);
+        originPosition = transform.localPosition;
+        originQuaternios = transform.localEulerAngles;
+        originScale = transform.localScale;
+    }
 
     public bool IsPlaying()
     {
@@ -63,8 +74,8 @@ public class ViewController : MonoBehaviour
             if (inAnimation.mod == AnimationMod.None)
             {
                 m_CanvasGroup.alpha = 0;
-                transform.localPosition = Vector3.zero;
-                transform.localScale = Vector3.one;
+                transform.localPosition = originPosition;
+                transform.localScale = originScale;
 
                 gameObject.SetActive(true);
                 OnStartEnter?.Invoke();
@@ -115,8 +126,8 @@ public class ViewController : MonoBehaviour
             if (outAnimation.mod == AnimationMod.None)
             {
                 m_CanvasGroup.alpha = 1;
-                transform.localPosition = Vector3.zero;
-                transform.localScale = Vector3.one;
+                transform.localPosition = originPosition;
+                transform.localScale = originScale;
 
                 OnStartExit?.Invoke();
                 sequence = DOTween.Sequence();
