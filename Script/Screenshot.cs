@@ -16,33 +16,28 @@ using System.Collections.Generic;
     6. 可以設定截圖數量
  */
 
-namespace Starlite
-{
-    public class Screenshot : MonoBehaviour
-    {
+namespace Starlite {
+
+    public class Screenshot : MonoBehaviour {
+
         [Serializable]
-        public struct ShortData
-        {
+        public struct ShortData {
             public string fileName;
             public int photoNum;
             public byte[] bytes;
         }
 
-        public enum LocalPathMod
-        {
+        public enum LocalPathMod {
             StreamingAssetsPath,
             CustomPath
         }
 
-        public static Screenshot Instance
-        {
-            get
-            {
+        public static Screenshot Instance {
+            get {
                 if (instance == null)
                     instance = FindFirstObjectByType<Screenshot>();
 
-                if (instance == null)
-                {
+                if (instance == null) {
                     GameObject go = new GameObject(typeof(Screenshot).Name);
                     instance = go.AddComponent<Screenshot>();
                     DontDestroyOnLoad(go);
@@ -89,44 +84,35 @@ namespace Starlite
 
         private string logPath = Application.streamingAssetsPath + "/Debug.txt";
 
-        private void Awake()
-        {
-            if (instance == null)
-            {
+        private void Awake() {
+            if (instance == null) {
                 instance = this;
             }
         }
 
-        private void Start()
-        {
-            if (!File.Exists(logPath))
-            {
+        private void Start() {
+            if (!File.Exists(logPath)) {
                 Directory.CreateDirectory(Application.streamingAssetsPath);
                 // Create a file to write to.
-                using (StreamWriter sw = File.CreateText(logPath))
-                {
+                using (StreamWriter sw = File.CreateText(logPath)) {
                     sw.WriteLine("=====RecodeLog=====");
                 }
             }
 
-            if (cam != null && targetWidth == 0)
-            {
+            if (cam != null && targetWidth == 0) {
                 targetWidth = cam.targetTexture == null ? Screen.width : cam.targetTexture.width;
             }
 
-            if (cam != null && targetHeight == 0)
-            {
+            if (cam != null && targetHeight == 0) {
                 targetHeight = cam.targetTexture == null ? Screen.height : cam.targetTexture.height;
             }
         }
 
-        public void Take()
-        {
+        public void Take() {
             StartCoroutine(Shot());
         }
 
-        public void Take(string fileName)
-        {
+        public void Take(string fileName) {
             shortData = new ShortData();
             shortData.fileName = fileName;
 
@@ -136,40 +122,35 @@ namespace Starlite
         /// <summary>
         /// 上傳或儲存截圖
         /// </summary>
-        public void Print()
-        {
-            if (shortDatas.Count >= number)
-            {
+        public void Print() {
+            if (shortDatas.Count >= number) {
                 Debug.Log("Upload Texture : " + shortDatas.Count);
                 sequenceing = Sequenceing();
                 StartCoroutine(sequenceing);
             }
         }
 
-        public void ClearShortDatas()
-        {
+        public void ClearShortDatas() {
             shortDatas.Clear();
         }
 
-        private IEnumerator Sequenceing()
-        {
-            if (!isLocal && !isOnline) yield break;
+        private IEnumerator Sequenceing() {
+            if (!isLocal && !isOnline) {
+                shortDatas.Clear();
+                yield break;
+            }
 
-            for (int i = 0; i < shortDatas.Count; i++)
-            {
-                if (String.IsNullOrEmpty(shortDatas[i].fileName))
-                {
+            for (int i = 0; i < shortDatas.Count; i++) {
+                if (String.IsNullOrEmpty(shortDatas[i].fileName)) {
                     Debug.LogError("檔名不能為Null或空白");
                     yield break;
                 }
 
-                if (isLocal)
-                {
+                if (isLocal) {
                     LocalSave(shortDatas[i].fileName + "_" + i, shortDatas[i].bytes);
                 }
 
-                if (isOnline)
-                {
+                if (isOnline) {
                     yield return StartCoroutine(WebSave(shortDatas[i].fileName, shortDatas[i].bytes, shortDatas[i].photoNum));
                 }
             }
@@ -177,21 +158,16 @@ namespace Starlite
             shortDatas.Clear();
         }
 
-        private IEnumerator Shot()
-        {
+        private IEnumerator Shot() {
             yield return new WaitForEndOfFrame();
-            if (cam == null)
-            {
+            if (cam == null) {
                 ViewCapture();
-            }
-            else
-            {
+            } else {
                 CameraCapture();
             }
         }
 
-        private void ViewCapture()
-        {
+        private void ViewCapture() {
             ClearTexture();
 
             tex = ScreenCapture.CaptureScreenshotAsTexture();
@@ -206,8 +182,7 @@ namespace Starlite
                 Print();
         }
 
-        private void CameraCapture()
-        {
+        private void CameraCapture() {
             ClearTexture();
 
             //if (targetWidth == 0)
@@ -246,22 +221,17 @@ namespace Starlite
                 Print();
         }
 
-        private void LocalSave(string fileName, byte[] bytes)
-        {
-            if (localPathMod == LocalPathMod.StreamingAssetsPath)
-            {
+        private void LocalSave(string fileName, byte[] bytes) {
+            if (localPathMod == LocalPathMod.StreamingAssetsPath) {
                 path = Path.Combine(Application.streamingAssetsPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
-            }
-            else if (localPathMod == LocalPathMod.CustomPath)
-            {
+            } else if (localPathMod == LocalPathMod.CustomPath) {
                 path = Path.Combine(localPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
             }
 
             File.WriteAllBytes(path, bytes);
         }
 
-        private IEnumerator WebSave(string fileName, byte[] bytes, int photoNum)
-        {
+        private IEnumerator WebSave(string fileName, byte[] bytes, int photoNum) {
             Debug.Log("actid : " + actid + " photoid : " + fileName + " photonum : " + photoNum);
             WWWForm form = new WWWForm();
             form.AddField("actid", actid);
@@ -269,14 +239,11 @@ namespace Starlite
             form.AddField("photonum", photoNum);
             form.AddBinaryData("upload_photo", bytes, "image/jpg");
 
-            using (UnityWebRequest www = UnityWebRequest.Post(url, form))
-            {
+            using (UnityWebRequest www = UnityWebRequest.Post(url, form)) {
                 yield return www.SendWebRequest();
 
-                if (www.result != UnityWebRequest.Result.Success)
-                {
-                    using (StreamWriter sw = File.AppendText(logPath))
-                    {
+                if (www.result != UnityWebRequest.Result.Success) {
+                    using (StreamWriter sw = File.AppendText(logPath)) {
                         sw.WriteLine(DateTime.Now.ToString("MM/dd HH:mm ") + fileName + ".jpg" + " " + www.error);
                     }
                     Debug.Log(www.error);
@@ -287,11 +254,8 @@ namespace Starlite
                     shortDatas.Clear();
 
                     StopCoroutine(sequenceing);
-                }
-                else
-                {
-                    using (StreamWriter sw = File.AppendText(logPath))
-                    {
+                } else {
+                    using (StreamWriter sw = File.AppendText(logPath)) {
                         sw.WriteLine(DateTime.Now.ToString("MM/dd HH:mm ") + fileName + ".jpg" + " Upload Complete.");
                     }
                     Debug.Log("Upload Complete.");
@@ -301,10 +265,8 @@ namespace Starlite
             }
         }
 
-        private void ClearTexture()
-        {
-            if (tex != null)
-            {
+        private void ClearTexture() {
+            if (tex != null) {
                 Destroy(tex);
                 tex = null;
             }

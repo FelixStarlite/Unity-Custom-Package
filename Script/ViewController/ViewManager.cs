@@ -1,13 +1,12 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using static UnityEngine.XR.OpenXR.Features.Interactions.HTCViveControllerProfile;
 
 public class ViewManager : MonoBehaviour
 {
-    public static ViewManager Instance
-    {
-        get
-        {
+    public static ViewManager Instance {
+        get {
             if (instance == null)
                 instance = FindFirstObjectByType<ViewManager>();
             return instance;
@@ -31,12 +30,23 @@ public class ViewManager : MonoBehaviour
             if (viewController == null) continue;
 
             views.Add(viewController.name, viewController);
-            viewController.Init();
         }
     }
 
     private void Start()
     {
+        foreach (var view in views)
+        {
+            // 沒有指定起始畫面，就使用第一個
+            if (startView == null)
+            {
+                startView = view.Value.gameObject;
+            }
+
+            // 初始化並隱藏
+            view.Value.Init();
+        }
+
         currentView = startView.GetComponent<ViewController>();
         currentView.ShowView(true);
         pagePath.Add(currentView.name);

@@ -33,9 +33,9 @@ public class ViewController : MonoBehaviour
 
     private CanvasGroup m_CanvasGroup;
 
-    private Vector3 originPosition;
-    private Vector3 originQuaternios;
-    private Vector3 originScale;
+    private Vector3 originPosition;     // 原始位置
+    private Vector3 originQuaternios;   // 原始旋轉
+    private Vector3 originScale;        // 原始大小
     private Sequence sequence;
 
     public void Init()
@@ -65,8 +65,7 @@ public class ViewController : MonoBehaviour
             gameObject.SetActive(true);
             OnStartEnter?.Invoke();
             OnEnterFinish?.Invoke();
-        }
-        else
+        } else
         {
             if (m_CanvasGroup == null)
                 m_CanvasGroup = GetComponent<CanvasGroup>();
@@ -83,8 +82,7 @@ public class ViewController : MonoBehaviour
                 sequence.SetDelay(inAnimation.delay)
                         .AppendCallback(() => m_CanvasGroup.alpha = 1);
                 OnEnterFinish?.Invoke();
-            }
-            else
+            } else
             {
                 m_CanvasGroup.alpha = inAnimation.start.alpha;
                 transform.localPosition = inAnimation.start.position;
@@ -117,8 +115,7 @@ public class ViewController : MonoBehaviour
             gameObject.SetActive(false);
             OnStartExit?.Invoke();
             OnExitFinish?.Invoke();
-        }
-        else
+        } else
         {
             if (m_CanvasGroup == null)
                 m_CanvasGroup = GetComponent<CanvasGroup>();
@@ -138,8 +135,7 @@ public class ViewController : MonoBehaviour
                             OnExitFinish?.Invoke();
                             gameObject.SetActive(false);
                         });
-            }
-            else
+            } else
             {
                 m_CanvasGroup.alpha = outAnimation.start.alpha;
                 transform.localPosition = outAnimation.start.position;
