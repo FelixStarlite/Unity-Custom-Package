@@ -1,12 +1,13 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using static UnityEngine.XR.OpenXR.Features.Interactions.HTCViveControllerProfile;
 
 public class ViewManager : MonoBehaviour
 {
-    public static ViewManager Instance {
-        get {
+    public static ViewManager Instance
+    {
+        get
+        {
             if (instance == null)
                 instance = FindFirstObjectByType<ViewManager>();
             return instance;
@@ -15,12 +16,11 @@ public class ViewManager : MonoBehaviour
 
     private static ViewManager instance;
 
-    [SerializeField]
-    private GameObject startView;
+    [SerializeField] private GameObject startView;
 
     private ViewController currentView;
-    private List<string> pagePath = new List<string>();
-    private Dictionary<string, ViewController> views = new Dictionary<string, ViewController>();
+    private List<string> pagePath = new();
+    private Dictionary<string, ViewController> views = new();
 
     private void Awake()
     {
@@ -35,7 +35,7 @@ public class ViewManager : MonoBehaviour
 
     private void Start()
     {
-        foreach (var view in views)
+        foreach (KeyValuePair<string, ViewController> view in views)
         {
             // 沒有指定起始畫面，就使用第一個
             if (startView == null)
