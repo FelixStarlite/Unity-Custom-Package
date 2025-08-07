@@ -9,9 +9,10 @@ using UnityEditor;
 
 /// <summary>
 /// 將Unity中的場景儲存成360圖片
-/// - 該腳本依賴 Unity360ScreenshotCapture 插件，可以在Unit Store中下載，或者到
+/// - 將腳本掛到Camera，設定好檔案路徑和參數，按下Play，不需執行Unity。
+/// - 此腳本依賴 Unity360ScreenshotCapture 插件，可以在Unit Store中下載，或者到
 /// https://github.com/yasirkula/Unity360ScreenshotCapture 下載
-/// - 該腳本依賴 Odin 插件，可至 https://odininspector.com/ 下載
+/// - 此腳本依賴 Odin 插件，可至 https://odininspector.com/ 下載
 /// </summary>
 public class CaptureController : MonoBehaviour
 {
