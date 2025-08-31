@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 /****************************************************
  這是一個計時器
@@ -10,7 +11,7 @@ using UnityEngine;
  使用方法：
  1. 將這個腳本掛在任意物件上
  2. 設定時間
- 3. 訂閱 OnTimeUp 事件
+ 3. 訂閱 OnTimeUp 事件或 timeUp 事件
  4. 呼叫 TimerPlay() 開始計時
 
  例如：
@@ -23,8 +24,8 @@ public class Timer : MonoBehaviour
 {
     public event Action OnTimeUp;
 
-    [SerializeField]
-    private float timer = 30f;
+    [SerializeField] private float timer = 30f;
+    [SerializeField] private UnityEvent timeUp;
 
     public void TimerPlay()
     {
@@ -41,5 +42,6 @@ public class Timer : MonoBehaviour
         }
 
         OnTimeUp?.Invoke();
+        timeUp?.Invoke();
     }
 }
