@@ -5,6 +5,8 @@ using System.IO;
 using UnityEngine.Networking;
 using Sirenix.OdinInspector;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
+using UnityEditor;
 
 /*
  截圖程式
@@ -54,37 +56,42 @@ namespace Starlite
 
         private static Screenshot instance;
 
-        public event Action<Texture2D> OnTaked;
-
+        public delegate UniTask WebUpload(Texture2D tex);
+        public event WebUpload OnTaked;
         public event Action<bool, string> OnUploaded;
-
         public Camera cam; // 如果有選擇Camera的話就截圖這個Camera的畫面,會尋找有ShotCamera的物件
         public int targetWidth;
         public int targetHeight;
         public int number = 1;
         public bool isAutoPrint = true;
-
         [Title("Local")] public bool isLocal = false;
-
         [ShowIf("isLocal")] public LocalPathMod localPathMod;
-
-        [ShowIf("isLocal"), ShowIf("localPathMod", LocalPathMod.CustomPath)]
+        [ShowIf("isLocal"),InlineButton("GetLocatPath")]
         public string localPath;
-
         [Title("Online")] public bool isOnline = false;
-
         [ShowIf("isOnline")] public string url = "https://starlitetw.com/api/qr_get_photo_upload_photo";
-
         [ShowIf("isOnline")] public string actid;
+
 
         private List<ShortData> shortDatas = new List<ShortData>();
         private ShortData shortData;
         private string path;
         private bool isRenderTexture = true;
+        private bool createdTemporaryRT = false;
         private Texture2D tex;
         private IEnumerator sequenceing;
 
-        private string logPath = Application.streamingAssetsPath + "/Debug.txt";
+        /// <summary>
+        /// 取得儲存檔案路徑
+        /// </summary>
+        private void GetLocatPath()
+        {
+            string path = EditorUtility.SaveFolderPanel("Save Screenshot", Application.streamingAssetsPath, "");
+            if (!string.IsNullOrEmpty(path))
+            {
+                localPath = path;
+            }
+        }
 
         private void Awake()
         {
@@ -96,16 +103,6 @@ namespace Starlite
 
         private void Start()
         {
-            if (!File.Exists(logPath))
-            {
-                Directory.CreateDirectory(Application.streamingAssetsPath);
-                // Create a file to write to.
-                using (StreamWriter sw = File.CreateText(logPath))
-                {
-                    sw.WriteLine("=====RecodeLog=====");
-                }
-            }
-
             if (cam != null && targetWidth == 0)
             {
                 targetWidth = cam.targetTexture == null ? Screen.width : cam.targetTexture.width;
@@ -214,14 +211,7 @@ namespace Starlite
 
             tex = ScreenCapture.CaptureScreenshotAsTexture();
 
-            shortData.bytes = tex.EncodeToJPG();
-            shortData.photoNum = shortDatas.Count + 1;
-            shortDatas.Add(shortData);
-
-            OnTaked?.Invoke(tex);
-
-            if (isAutoPrint)
-                Print();
+            RecordAndNotify(tex);
         }
 
         /// <summary>
@@ -231,52 +221,47 @@ namespace Starlite
         {
             ClearTexture();
 
-            //if (targetWidth == 0)
-            //{
-            //    targetWidth = cam.targetTexture == null ? Screen.width : cam.targetTexture.width;
-            //}
-
-            //if (targetHeight == 0)
-            //{
-            //    targetHeight = cam.targetTexture == null ? Screen.height : cam.targetTexture.height;
-            //}
+            // 取得實際截圖寬高（若未設定則回退到相機 RT 或螢幕大小）
+            GetTargetSize(out int width, out int height);
 
             RenderTexture rt = cam.targetTexture;
-            // 如果沒有RenderTexture就新增一個
+            createdTemporaryRT = false;
+
+            // 如果沒有RenderTexture就新增一個（臨時）
             if (rt == null)
             {
-                rt = new RenderTexture(targetWidth, targetHeight, 24);
+                rt = new RenderTexture(width, height, 24);
                 cam.targetTexture = rt;
-                cam.Render();
-                isRenderTexture = false;
+                createdTemporaryRT = true;
             }
 
-            RenderTexture currentRT = RenderTexture.active;
-            RenderTexture.active = rt;
-            cam.Render();
+            RenderTexture prevActive = RenderTexture.active;
 
-            tex = new Texture2D(targetWidth, targetHeight, TextureFormat.RGB24, false);
-            tex.ReadPixels(new Rect(0, 0, targetWidth, targetHeight), 0, 0);
-            tex.Apply();
-
-            shortData.bytes = tex.EncodeToJPG();
-            shortData.photoNum = shortDatas.Count + 1;
-            shortDatas.Add(shortData);
-
-            Debug.Log("Screenshot captured!");
-
-            RenderTexture.active = currentRT;
-            // 沒有默認的RenderTexture才會執行
-            if (!isRenderTexture)
+            try
             {
-                cam.targetTexture = null;
-                Destroy(rt);
+                RenderTexture.active = rt;
+                cam.Render();
+
+                tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+
+                Debug.Log("Screenshot captured!");
+
+                RecordAndNotify(tex);
             }
+            finally
+            {
+                RenderTexture.active = prevActive;
 
-            OnTaked?.Invoke(tex);
-
-            if (isAutoPrint)
-                Print();
+                // 僅在建立了臨時 RT 時才清理
+                if (createdTemporaryRT)
+                {
+                    cam.targetTexture = null;
+                    Destroy(rt);
+                    createdTemporaryRT = false;
+                }
+            }
         }
 
         /// <summary>
@@ -293,6 +278,17 @@ namespace Starlite
             }
             else if (localPathMod == LocalPathMod.CustomPath)
             {
+                // 沒有指定路徑就使用默認路徑
+                if (string.IsNullOrEmpty(localPath))
+                {
+                    Debug.LogWarning("沒有指定路徑，使用默認路徑。");
+                    localPath = Application.streamingAssetsPath;
+                }
+
+                // 指定路徑沒有資料夾就新增一個
+                if (!Directory.Exists(localPath))
+                    Directory.CreateDirectory(localPath);
+
                 path = Path.Combine(localPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
             }
 
@@ -321,11 +317,6 @@ namespace Starlite
 
                 if (www.result != UnityWebRequest.Result.Success)
                 {
-                    using (StreamWriter sw = File.AppendText(logPath))
-                    {
-                        sw.WriteLine(DateTime.Now.ToString("MM/dd HH:mm ") + fileName + ".jpg" + " " + www.error);
-                    }
-
                     Debug.Log(www.error);
 
                     OnUploaded?.Invoke(false, www.error);
@@ -337,18 +328,50 @@ namespace Starlite
                 }
                 else
                 {
-                    using (StreamWriter sw = File.AppendText(logPath))
-                    {
-                        sw.WriteLine(DateTime.Now.ToString("MM/dd HH:mm ") + fileName + ".jpg" + " Upload Complete.");
-                    }
-
                     Debug.Log("Upload Complete.");
 
                     OnUploaded?.Invoke(true, actid + "_" + fileName);
                 }
             }
         }
-        
+
+        // 將擷取到的貼圖進行編碼、編號、加入清單、觸發事件與自動列印
+        private void RecordAndNotify(Texture2D captured)
+        {
+            shortData.bytes = captured.EncodeToJPG();
+            shortData.photoNum = shortDatas.Count + 1;
+            shortDatas.Add(shortData);
+
+            OnTaked?.Invoke(captured);
+
+            if (isAutoPrint)
+                Print();
+        }
+
+        // 取得截圖尺寸：優先使用設定值，否則回退到相機的 RT 或螢幕分辨率
+        private void GetTargetSize(out int width, out int height)
+        {
+            // 若已明確設定則直接使用
+            if (targetWidth > 0 && targetHeight > 0)
+            {
+                width = targetWidth;
+                height = targetHeight;
+                return;
+            }
+
+            // 若相機已有 RT，使用其尺寸；否則使用螢幕尺寸
+            if (cam != null && cam.targetTexture != null)
+            {
+                width = cam.targetTexture.width;
+                height = cam.targetTexture.height;
+            }
+            else
+            {
+                width = Screen.width;
+                height = Screen.height;
+            }
+        }
+
         /// <summary>
         /// 刪除紋理，防止記憶體泄露
         /// </summary>
