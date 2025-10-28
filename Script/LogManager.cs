@@ -24,6 +24,8 @@ public static class LogManager
         }
     }
 
+
+
     /// <summary>
     /// 記錄一般信息日誌
     /// </summary>
@@ -102,6 +104,16 @@ public static class LogManager
         WriteLine($"[Info][Context] {message} | {ctxInfo}");
     }
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void AutoInitialize()
+    {
+        // 這個方法的內容甚至可以是空的！
+        // 因為只要這個方法被 Unity 自動呼叫，
+        // 就構成了對 LogManager 類別的「第一次存取」，
+        // 從而自動觸發上面的靜態建構函式。
+        Debug.Log("AutoInitialize called by Unity, triggering static constructor.");
+    }
+
     /// <summary>
     /// 初始化日誌系統，設置日誌文件路徑並訂閱Unity日誌事件
     /// </summary>
@@ -125,7 +137,7 @@ public static class LogManager
     {
         string folderPath = Path.Combine(Application.streamingAssetsPath, "Logs");
         Directory.CreateDirectory(folderPath);
-        logFilePath = Path.Combine(folderPath, "Log.txt");
+        logFilePath = Path.Combine(folderPath, $"{DateTime.Now:yyyy_MM_dd_HH_mm}_Log.txt");
     }
 
     /// <summary>

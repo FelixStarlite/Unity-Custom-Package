@@ -11,7 +11,7 @@ namespace Starlite
     /// <summary>
     /// API 服務類別，用於處理與伺服器進行的 HTTP 請求操作。
     /// </summary>
-    public class ApiService : MonoBehaviour
+    public static class ApiService
     {
         /// <summary>
         /// 發送 HTTP POST 請求至指定的 URL，並附帶多部分表單資料進行上傳。
