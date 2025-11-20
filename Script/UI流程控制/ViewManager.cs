@@ -21,7 +21,7 @@ public class ViewManager : MonoBehaviour
         get => currentView;
     }
 
-    private GameObject startView;
+    [SerializeField]private GameObject startView;
 
     private ViewController currentView;
     private List<string> pagePath = new();
