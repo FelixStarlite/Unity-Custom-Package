@@ -24,8 +24,6 @@ public static class LogManager
         }
     }
 
-
-
     /// <summary>
     /// 記錄一般信息日誌
     /// </summary>
@@ -164,9 +162,7 @@ public static class LogManager
     /// </summary>
     private static void SubscribeToUnityLogs()
     {
-        Application.logMessageReceived -= HandleUnityLog;
         Application.logMessageReceivedThreaded -= HandleUnityLog;
-        Application.logMessageReceived += HandleUnityLog;
         Application.logMessageReceivedThreaded += HandleUnityLog;
     }
 

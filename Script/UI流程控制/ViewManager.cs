@@ -16,7 +16,12 @@ public class ViewManager : MonoBehaviour
 
     private static ViewManager instance;
 
-    [SerializeField] private GameObject startView;
+    public ViewController CurrentView
+    {
+        get => currentView;
+    }
+
+    private GameObject startView;
 
     private ViewController currentView;
     private List<string> pagePath = new();
@@ -24,12 +29,19 @@ public class ViewManager : MonoBehaviour
 
     private void Awake()
     {
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            ViewController viewController = transform.GetChild(i).GetComponent<ViewController>();
-            if (viewController == null) continue;
+        // 參數 true 表示包含隱藏(inactive)的物件
+        ViewController[] viewControllers = GetComponentsInChildren<ViewController>(true);
 
-            views.Add(viewController.name, viewController);
+        foreach (ViewController viewController in viewControllers)
+        {
+            // 跳過自己(如果 ViewManager 本身也有 ViewController 組件)
+            if (viewController.transform == transform) continue;
+
+            // 只取得直接子物件
+            if (viewController.transform.parent == transform)
+            {
+                views.Add(viewController.name, viewController);
+            }
         }
     }
 

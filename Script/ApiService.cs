@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
-
 
 namespace Starlite
 {
@@ -14,77 +14,106 @@ namespace Starlite
     public static class ApiService
     {
         /// <summary>
-        /// 發送 HTTP POST 請求至指定的 URL，並附帶多部分表單資料進行上傳。
+        /// GET 請求
         /// </summary>
-        /// <typeparam name="T">接收資料的目標類型，必須為參考型別。</typeparam>
-        /// <param name="url">指定的目標 URL。</param>
-        /// <param name="form">包含多部分表單資料的集合。</param>
-        /// <returns>反序列化後的回應資料物件，包含狀態、訊息及數據。</returns>
-        /// <exception cref="Exception">當請求失敗或伺服器回傳錯誤時拋出。</exception>
-        public static async UniTask<ApiResponse<T>> Upload<T>(string url, List<IMultipartFormSection> form) where T : class
+        public static async UniTask<ApiResponse<T>> GetAsync<T>(
+            string url,
+            string token = null,
+            CancellationToken cancellationToken = default)
+        {
+            using (UnityWebRequest request = UnityWebRequest.Get(url))
+            {
+                SetCommonHeaders(request, token);
+                return await SendRequestAsync<T>(request, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// POST 請求
+        /// </summary>
+        public static async UniTask<ApiResponse<T>> PostAsync<T>(
+            string url,
+            List<IMultipartFormSection> form,
+            string token = null,
+            CancellationToken cancellationToken = default)
         {
             using (UnityWebRequest request = UnityWebRequest.Post(url, form))
             {
-                try
+                SetCommonHeaders(request, token);
+                return await SendRequestAsync<T>(request, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// 核心請求發送方法
+        /// </summary>
+        private static async UniTask<ApiResponse<T>> SendRequestAsync<T>(
+            UnityWebRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                // 發送請求並等待完成
+                await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
+
+                // 解析回應
+                string responseText = request.downloadHandler.text;
+                Debug.Log($"API 回應: {responseText}");
+
+                ApiResponse<T> response = JsonConvert.DeserializeObject<ApiResponse<T>>(responseText);
+                return response;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.Log("請求已取消");
+                return new ApiResponse<T>
                 {
-                    await request.SendWebRequest().ToUniTask();
-
-                    if (request.result == UnityWebRequest.Result.Success)
-                    {
-                        Debug.Log($"資料上傳成功: {request.downloadHandler.text}");
-                        var data = JsonConvert.DeserializeObject<T>(request.downloadHandler.text);
-                        return new ApiResponse<T>
-                        {
-                            IsSuccess = true,
-                            Message = $"資料上傳成功: {request.downloadHandler.text}",
-                            Data = data
-                        };
-
-                        //如果資料上傳成功，但是狀態有可能是失敗，可以使用型別檢查來進行強轉型(需要實作介面)
-                        // public interface IStatusToken
-                        // {
-                        //     bool status { get; }
-                        // }
-                        //============
-                        // bool successFlag = data is IStatusToken statusToken ? statusToken.status : true;
-                        // return new ApiResponse<T>
-                        // {
-                        //     isSuccess = data.status,
-                        //     message = $"資料上傳成功: {request.downloadHandler.text}",
-                        //     data = data
-                        // };
-                    }
-
-                    Debug.LogError($"資料上傳失敗: 錯誤類型: {request.result}, 錯誤碼: {request.responseCode}, 錯誤訊息: {request.error}");
-                    return new ApiResponse<T>
-                    {
-                        IsSuccess = false,
-                        Message = $"資料上傳失敗: 錯誤類型: {request.result}, 錯誤碼: {request.responseCode}, 錯誤訊息: {request.error}",
-                        Data = null
-                    };
+                    status = false,
+                    msg = "請求已取消",
+                    data = default(T)
+                };
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"請求異常: {ex.Message}\n{ex.StackTrace}");
+                string responseText = request.downloadHandler.text;
+                if (!string.IsNullOrEmpty(responseText))
+                {
+                    ApiResponse<T> response = JsonConvert.DeserializeObject<ApiResponse<T>>(responseText);
+                    return response;
                 }
-                catch (Exception e)
+                else
                 {
-                    Debug.LogError($"上傳資料發生錯誤: {e.Message}\n{e.StackTrace}");
                     return new ApiResponse<T>
                     {
-                        IsSuccess = false,
-                        Message = $"上傳資料發生錯誤: {e.Message}",
-                        Data = null
+                        status = false,
+                        msg = ex.Message,
+                        data = default(T)
                     };
                 }
             }
         }
-    }
 
-    /// <summary>
-    /// 通用回傳格式
-    /// </summary>
-    [Serializable]
-    public class ApiResponse<T>
-    {
-        public bool IsSuccess;
-        public string Message;
-        public T Data;
+        /// <summary>
+        /// 設定通用請求標頭 (例如: Token)
+        /// </summary>
+        private static void SetCommonHeaders(UnityWebRequest request, string token = null)
+        {
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.SetRequestHeader("X-Tablet-Token", token);
+            }
+        }
     }
+}
+
+/// <summary>
+/// 通用回傳格式
+/// </summary>
+[Serializable]
+public class ApiResponse<T>
+{
+    public bool status;
+    public string msg;
+    public T data;
 }

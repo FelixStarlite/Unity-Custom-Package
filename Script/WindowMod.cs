@@ -43,44 +43,60 @@ public class WindowMod : MonoBehaviour
         //如果不是多畫面拼接，則使用Unity內建自動設定單一螢幕解析度
         if (!isMultiScreen)
         {
-            // 檢查是否啟用 16:9 等比縮放
+            // 檢查是否啟用等比縮放
             if (scaleTo16_9)
             {
-                print("Screen Setting: Scale to 16:9 aspect ratio");
+                print("Screen Setting: Scale target resolution to fit screen (Letterbox/Pillarbox)");
 
-                // 目標長寬比 (16:9)
-                float targetAspectRatio = 16.0f / 9.0f;
+                // 1. 取得你想要的目標解析度 (來自 Inspector)
+                float targetWidth = screenResolution.x;
+                float targetHeight = screenResolution.y;
 
-                // 取得目前螢幕的實際寬度和高度
-                int currentScreenWidth = Screen.currentResolution.width;
-                int currentScreenHeight = Screen.currentResolution.height;
+                // 2. 取得螢幕的實際原生解析度
+                float screenWidth = Screen.currentResolution.width;
+                float screenHeight = Screen.currentResolution.height;
 
-                // 計算目前的長寬比
-                float currentAspectRatio = (float)currentScreenWidth / currentScreenHeight;
+                // 3. 計算目標與螢幕的長寬比
+                // (例如 1920 / 1080 = 1.777)
+                float targetAspect = targetWidth / targetHeight;
+                // (例如 1920 / 1200 = 1.6)
+                float screenAspect = screenWidth / screenHeight;
 
                 int newWidth;
                 int newHeight;
 
-                // 判斷目前的長寬比，並計算最適合的 16:9 解析度
-                if (currentAspectRatio > targetAspectRatio)
+                // 4. 比較長寬比並計算
+
+                // Case 1: 螢幕比目標更 "窄" 或 "高" (例如 螢幕 16:10, 目標 16:9)
+                // screenAspect (1.6) < targetAspect (1.777)
+                // 這表示我們的 "寬度" 是限制，畫面會被上下加黑邊 (Letterbox)
+                if (screenAspect < targetAspect)
                 {
-                    // 如果螢幕比 16:9 更寬 (例如 21:9)，以高度為基準來計算寬度
-                    newHeight = currentScreenHeight;
-                    newWidth = Mathf.RoundToInt(newHeight * targetAspectRatio);
-                }
-                else
-                {
-                    // 如果螢幕比 16:9 更高或剛好 (例如 4:3)，以寬度為基準來計算高度
-                    newWidth = currentScreenWidth;
-                    newHeight = Mathf.RoundToInt(newWidth / targetAspectRatio);
+                    // 以 "螢幕寬度" 為基準
+                    newWidth = (int)screenWidth;
+                    // 根據目標長寬比，計算應有的高度
+                    newHeight = Mathf.RoundToInt(newWidth / targetAspect);
                 }
 
-                // 設定新的解析度
+                // Case 2: 螢幕比目標更 "寬" (例如 螢幕 21:9, 目標 16:9)
+                // 或是長寬比剛好相同
+                // screenAspect (2.33) >= targetAspect (1.777)
+                // 這表示我們的 "高度" 是限制，畫面會被左右加黑邊 (Pillarbox)
+                else // (screenAspect >= targetAspect)
+                {
+                    // 以 "螢幕高度" 為基準
+                    newHeight = (int)screenHeight;
+                    // 根據目標長寬比，計算應有的寬度
+                    newWidth = Mathf.RoundToInt(newHeight * targetAspect);
+                }
+
+                print($"Target Aspect: {targetAspect}, Screen Aspect: {screenAspect}");
+                print($"Target Res: {targetWidth}x{targetHeight}, Screen Res: {screenWidth}x{screenHeight}, Final Res: {newWidth}x{newHeight}");
                 Screen.SetResolution(newWidth, newHeight, isFullScreen);
             }
             else
             {
-                // 如果沒有啟用等比縮放，就使用原本的固定解析度設定
+                // 如果沒有啟用等比縮放，就使用 Inspector 上的固定解析度
                 print("Screen Setting: Use default fixed resolution");
                 Screen.SetResolution((int)screenResolution.x, (int)screenResolution.y, isFullScreen);
             }
