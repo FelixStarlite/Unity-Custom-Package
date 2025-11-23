@@ -70,11 +70,11 @@
 * **COMPort.unitypackage**: 串口通訊相關功能。
 * **GameSetting.unitypackage**: 遊戲設定模組。
 * **RFID讀卡機(限耘碩科技).unitypackage**: 特定型號 RFID 讀卡機串接。
-* **北陽雷達_v1.1.unitypackage**: 北陽 (Hokuyo) 雷達互動模組。
+* **北陽雷達.unitypackage**: 北陽 (Hokuyo) 雷達互動模組。
 * **字串加密和CSV編輯.unitypackage**: 包含上述加密與 CSV 工具的整合包。
 * **導覽頁.unitypackage**: 通用導覽頁面 UI 模組。
-* **深度感測插件_v1.0.unitypackage**: 深度相機相關功能。
-* **版本號顯示.unitypackage**: 自動顯示應用程式版本號的 UI 小工具。
+* **深度感測插件.unitypackage**: 深度相機相關功能。
+* **自動建置版本號.unitypackage**: 自動顯示應用程式版本號的 UI 小工具。
 
 ---
 
