@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -12,7 +11,7 @@ using UnityEngine.Events;
  使用方法：
  1. 將這個腳本掛在任意物件上
  2. 設定時間
- 3. 訂閱 OnTimeUp 事件或 timeUp 事件
+ 3. 訂閱 OnTimeUp 事件
  4. 呼叫 StartTimer() 開始計時
  5. 呼叫 StopTimer() 停止計時
 
@@ -24,12 +23,10 @@ using UnityEngine.Events;
 
 public class Timer : MonoBehaviour
 {
-    public event Action OnTimeUp;
-
     [SerializeField] private TextMeshProUGUI timerText;
     [SerializeField] private float timer = 30f;
     [SerializeField] private bool isAutoStart;
-    [SerializeField] private UnityEvent timeUp;
+    [SerializeField] private UnityEvent onTimeUp;
 
     private Coroutine timerCoroutine;
 
@@ -87,8 +84,7 @@ public class Timer : MonoBehaviour
             timerText.text = "0";
 
         // 時間到，觸發事件
-        OnTimeUp?.Invoke();
-        timeUp?.Invoke();
+        onTimeUp?.Invoke();
 
         timerCoroutine = null;
     }
