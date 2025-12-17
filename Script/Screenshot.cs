@@ -6,36 +6,46 @@ using UnityEngine.Networking;
 using Sirenix.OdinInspector;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+#if UNITY_EDITOR
 using UnityEditor;
-
-/*
- 截圖程式
-    1. 可以截取畫面
-    2. 可以截取Camera畫面
-    3. 可以儲存截圖
-    4. 可以上傳截圖
-    5. 可以設定截圖大小
-    6. 可以設定截圖數量
- */
+#endif
+using Newtonsoft.Json;
 
 namespace Starlite
 {
+    /// <summary>
+    /// 截圖工具類 - 用於在 Unity 中進行螢幕截圖並支援本地儲存或上傳至遠端伺服器
+    /// 
+    /// 使用方法：
+    /// 1. 將此腳本掛載到場景中的 GameObject 上，或通過 Screenshot.Instance 自動建立單例
+    /// 2. 設定截圖參數：
+    ///    - cam: 指定要截圖的相機（留空則截取整個畫面）
+    ///    - rect: 設定截圖範圍（留空則使用全螢幕）
+    ///    - isLocal: 啟用本地儲存，並設定 localPathMod 和 localPath
+    ///    - isOnline: 啟用線上上傳，並設定 url 和 token
+    /// 3. 呼叫 Take() 或 Take(fileName) 進行截圖
+    /// 4. 截圖完成後會觸發 OnTaked 事件，上傳完成後會觸發 OnUploaded 事件
+    /// 5. 若 isAutoSave 為 false，需手動呼叫 UploadAndSave() 來儲存或上傳截圖
+    /// </summary>
     public class Screenshot : MonoBehaviour
     {
-        [Serializable]
-        public struct ShortData
-        {
-            public string fileName;
-            public int photoNum;
-            public byte[] bytes;
-        }
-
         public enum LocalPathMod
         {
             StreamingAssetsPath,
             CustomPath
         }
 
+        /// <summary>
+        /// 序列容器
+        /// </summary>
+        [Serializable]
+        public class TexSequenced
+        {
+            public string fileName;
+            public Texture2D tex;
+        }
+
+        // 單例模式實作 - 確保場景中只有一個 Screenshot 實例，並在場景切換時保持存在
         public static Screenshot Instance
         {
             get
@@ -56,31 +66,30 @@ namespace Starlite
 
         private static Screenshot instance;
 
-        public delegate UniTask WebUpload(Texture2D tex);
-        public event WebUpload OnTaked;
-        public event Action<bool, string> OnUploaded;
-        public Camera cam; // 如果有選擇Camera的話就截圖這個Camera的畫面,會尋找有ShotCamera的物件
-        public int targetWidth;
-        public int targetHeight;
-        public int number = 1;
-        public bool isAutoPrint = true;
-        [Title("Local")] public bool isLocal = false;
-        [ShowIf("isLocal")] public LocalPathMod localPathMod;
-        [ShowIf("isLocal"),InlineButton("GetLocatPath")]
+        // 事件回調機制 - 訂閱這些事件以在截圖完成或上傳完成時執行自訂邏輯
+        public event Action<Texture2D> OnTaked; // 完成截圖事件 - 當截圖完成時觸發，傳回截圖的 Texture2D
+        public delegate void UploadedAction<T>(ApiResponse<T> result);
+        public event UploadedAction<UploadResult> OnUploaded; // 完成上傳事件 - 當上傳完成時觸發，傳回 API 回應結果
+
+        [Tooltip("指定Camera(可留空)")] public Camera cam; // 如果有選擇Camera的話就截圖這個Camera的畫面,會尋找有ShotCamera的物件
+        [Tooltip("截圖範圍")] public Rect rect;
+        [SerializeField, Tooltip("是否自動儲存截圖")] private bool isAutoSave = true; // 是否自動儲存，若為 false 則需手動呼叫 UploadAndSave()
+        [Title("Local")]
+        public bool isLocal;
+        [ShowIf("isLocal"), Tooltip("本地儲存方式")] public LocalPathMod localPathMod;
+        [ShowIf("isLocal"), InlineButton("GetLocatPath"), Tooltip("儲存路徑")]
         public string localPath;
-        [Title("Online")] public bool isOnline = false;
-        [ShowIf("isOnline")] public string url = "https://starlitetw.com/api/qr_get_photo_upload_photo";
-        [ShowIf("isOnline")] public string actid;
+        [Title("Online")]
+        public bool isOnline;
+        [ShowIf("isOnline"), Tooltip("API網址")] public string url = "https://system-qr.starlitetw-project.com/api/upload";
+        [ShowIf("isOnline"), Tooltip("API金鑰")] public string token;
 
+        // 工作流程：Take() -> Shot() -> (ViewCapture/CameraCapture) -> OnTaked 事件 -> UploadAndSave() -> (LocalSave/WebSave) -> OnUploaded 事件
+        private bool createdTemporaryRT; // 標記是否使用新建RenderTexture
+        private TexSequenced texSequenced;
+        private List<TexSequenced> TexSequenceds = new(); // 序列模式用來儲存截圖 - 支援批次處理多張截圖
 
-        private List<ShortData> shortDatas = new List<ShortData>();
-        private ShortData shortData;
-        private string path;
-        private bool isRenderTexture = true;
-        private bool createdTemporaryRT = false;
-        private Texture2D tex;
-        private IEnumerator sequenceing;
-
+#if UNITY_EDITOR
         /// <summary>
         /// 取得儲存檔案路徑
         /// </summary>
@@ -92,95 +101,43 @@ namespace Starlite
                 localPath = path;
             }
         }
+#else
+        private void GetLocatPath() { }
+#endif
 
         private void Awake()
         {
-            if (instance == null)
+            if (instance != null && instance != this)
             {
-                instance = this;
+                Destroy(gameObject);
+                return;
             }
+
+            DontDestroyOnLoad(gameObject);
         }
 
-        private void Start()
-        {
-            if (cam != null && targetWidth == 0)
-            {
-                targetWidth = cam.targetTexture == null ? Screen.width : cam.targetTexture.width;
-            }
-
-            if (cam != null && targetHeight == 0)
-            {
-                targetHeight = cam.targetTexture == null ? Screen.height : cam.targetTexture.height;
-            }
-        }
-
+        /// <summary>
+        /// 進行截圖
+        /// </summary>
+        [Button]
         public void Take()
         {
+            // 使用日期標籤做為檔名
+            string fileName = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
+            texSequenced = new();
+            texSequenced.fileName = fileName;
             StartCoroutine(Shot());
         }
 
+        /// <summary>
+        /// 進行截圖並使用自訂的檔名
+        /// </summary>
+        /// <param name="fileName"></param>
         public void Take(string fileName)
         {
-            shortData = new ShortData();
-            shortData.fileName = fileName;
-
+            texSequenced = new();
+            texSequenced.fileName = fileName;
             StartCoroutine(Shot());
-        }
-
-        /// <summary>
-        /// 上傳或儲存截圖
-        /// </summary>
-        public void Print()
-        {
-            if (shortDatas.Count >= number)
-            {
-                Debug.Log("Upload Texture : " + shortDatas.Count);
-                sequenceing = Sequenceing();
-                StartCoroutine(sequenceing);
-            }
-        }
-
-        /// <summary>
-        /// 清除佇列
-        /// </summary>
-        public void ClearShortDatas()
-        {
-            shortDatas.Clear();
-        }
-
-        /// <summary>
-        /// 開始將佇列中的資料進行儲存
-        /// </summary>
-        /// <returns></returns>
-        private IEnumerator Sequenceing()
-        {
-            if (!isLocal && !isOnline)
-            {
-                ClearShortDatas();
-                yield break;
-            }
-
-            for (int i = 0; i < shortDatas.Count; i++)
-            {
-                if (String.IsNullOrEmpty(shortDatas[i].fileName))
-                {
-                    Debug.LogError("檔名不能為Null或空白");
-                    yield break;
-                }
-
-                if (isLocal)
-                {
-                    LocalSave(shortDatas[i].fileName + "_" + i, shortDatas[i].bytes);
-                }
-
-                if (isOnline)
-                {
-                    yield return StartCoroutine(WebSave(shortDatas[i].fileName, shortDatas[i].bytes,
-                        shortDatas[i].photoNum));
-                }
-            }
-
-            ClearShortDatas();
         }
 
         /// <summary>
@@ -192,35 +149,40 @@ namespace Starlite
         private IEnumerator Shot()
         {
             yield return new WaitForEndOfFrame();
+
             if (cam == null)
             {
-                ViewCapture();
+                texSequenced.tex = ViewCapture();
             }
             else
             {
-                CameraCapture();
+                texSequenced.tex = CameraCapture();
+            }
+
+            TexSequenceds.Add(texSequenced);
+
+            Debug.Log("截圖完成！");
+            OnTaked?.Invoke(texSequenced.tex);
+
+            if (isAutoSave)
+            {
+                UploadAndSave();
             }
         }
 
         /// <summary>
         /// 對整個畫面進行截圖
         /// </summary>
-        private void ViewCapture()
+        private Texture2D ViewCapture()
         {
-            ClearTexture();
-
-            tex = ScreenCapture.CaptureScreenshotAsTexture();
-
-            RecordAndNotify(tex);
+            return ScreenCapture.CaptureScreenshotAsTexture();
         }
 
         /// <summary>
         /// 對目標Camera進行截圖
         /// </summary>
-        private void CameraCapture()
+        private Texture2D CameraCapture()
         {
-            ClearTexture();
-
             // 取得實際截圖寬高（若未設定則回退到相機 RT 或螢幕大小）
             GetTargetSize(out int width, out int height);
 
@@ -235,20 +197,34 @@ namespace Starlite
                 createdTemporaryRT = true;
             }
 
+            // 將目前啟用的RT暫存
             RenderTexture prevActive = RenderTexture.active;
 
             try
             {
+                // 啟動新的RT內容進行截圖
                 RenderTexture.active = rt;
                 cam.Render();
 
-                tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-                tex.Apply();
+                // 若未設定 rect（或為 0），預設抓整張 RT
+                Rect readRect = rect;
+                if (readRect.width <= 0f || readRect.height <= 0f)
+                {
+                    readRect = new Rect(0, 0, width, height);
+                }
 
+                // Clamp，避免超出 RT 範圍造成黑圖/錯位
+                float x = Mathf.Clamp(readRect.x, 0, width - 1);
+                float y = Mathf.Clamp(readRect.y, 0, height - 1);
+                float w = Mathf.Clamp(readRect.width, 1, width - x);
+                float h = Mathf.Clamp(readRect.height, 1, height - y);
+                readRect = new Rect(x, y, w, h);
+
+                Texture2D texture = new Texture2D((int)w, (int)h, TextureFormat.RGB24, false);
+                texture.ReadPixels(readRect, 0, 0);
+                texture.Apply();
                 Debug.Log("Screenshot captured!");
-
-                RecordAndNotify(tex);
+                return texture;
             }
             finally
             {
@@ -265,16 +241,47 @@ namespace Starlite
         }
 
         /// <summary>
-        /// 本地儲存
+        /// 上傳或儲存截圖
+        /// </summary>
+        [Button]
+        public void UploadAndSave()
+        {
+            if (TexSequenceds.Count == 0) return;
+
+            List<IMultipartFormSection> formData = new List<IMultipartFormSection>();
+            foreach (var texSequenced in TexSequenceds)
+            {
+                if (isLocal)
+                {
+                    LocalSave(texSequenced.tex, texSequenced.fileName);
+                }
+
+                if (isOnline)
+                {
+                    formData.Add(new MultipartFormFileSection("photos[]", texSequenced.tex.EncodeToJPG(), texSequenced.fileName, "image/jpg"));
+                }
+            }
+
+            if (isOnline)
+            {
+                WebSave(formData).Forget();
+            }
+
+            ClearTexture();
+        }
+
+        /// <summary>
+        /// 將截圖儲存在本地
         /// </summary>
         /// <param name="fileName">檔案名稱</param>
         /// <param name="bytes">截圖原始檔</param>
-        private void LocalSave(string fileName, byte[] bytes)
+        private void LocalSave(Texture2D tex, string fileName)
         {
+            string path = "";
             if (localPathMod == LocalPathMod.StreamingAssetsPath)
             {
-                path = Path.Combine(Application.streamingAssetsPath,
-                    DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
+                localPath = Application.streamingAssetsPath;
+                path = Path.Combine(localPath, fileName + ".jpg");
             }
             else if (localPathMod == LocalPathMod.CustomPath)
             {
@@ -285,80 +292,76 @@ namespace Starlite
                     localPath = Application.streamingAssetsPath;
                 }
 
-                // 指定路徑沒有資料夾就新增一個
-                if (!Directory.Exists(localPath))
-                    Directory.CreateDirectory(localPath);
-
-                path = Path.Combine(localPath, DateTime.Now.ToString("yyyyMMdd") + fileName + ".jpg");
+                path = Path.Combine(localPath, fileName + ".jpg");
             }
 
-            File.WriteAllBytes(path, bytes);
+            // 指定路徑沒有資料夾就新增一個
+            if (!Directory.Exists(localPath))
+                Directory.CreateDirectory(localPath);
+
+            File.WriteAllBytes(path, tex.EncodeToJPG());
         }
 
         /// <summary>
-        /// 後台儲存
+        /// 將截圖上傳到網路後台
         /// </summary>
         /// <param name="fileName">檔案名稱</param>
         /// <param name="bytes">截圖原始檔</param>
         /// <param name="photoNum">第幾張照片</param>
         /// <returns></returns>
-        private IEnumerator WebSave(string fileName, byte[] bytes, int photoNum)
+        private async UniTaskVoid WebSave(List<IMultipartFormSection> formData)
         {
-            Debug.Log("actid : " + actid + " photoid : " + fileName + " photonum : " + photoNum);
-            WWWForm form = new WWWForm();
-            form.AddField("actid", actid);
-            form.AddField("photoid", actid + "_" + fileName);
-            form.AddField("photonum", photoNum);
-            form.AddBinaryData("upload_photo", bytes, "image/jpg");
-
-            using (UnityWebRequest www = UnityWebRequest.Post(url, form))
+            using (UnityWebRequest www = UnityWebRequest.Post(url, formData))
             {
-                yield return www.SendWebRequest();
+                www.SetRequestHeader("Authorization", $"Bearer {token}");
 
-                if (www.result != UnityWebRequest.Result.Success)
+                try
                 {
-                    Debug.Log(www.error);
+                    await www.SendWebRequest();
 
-                    OnUploaded?.Invoke(false, www.error);
-
-                    // 連線有問題，就將陣列清空並停止序列
-                    shortDatas.Clear();
-
-                    StopCoroutine(sequenceing);
+                    string body = www.downloadHandler != null ? www.downloadHandler.text : null;
+                    // 成功就嘗試反序列化；失敗也要回呼，避免外部流程卡住
+                    if (www.result == UnityWebRequest.Result.Success)
+                    {
+                        Debug.Log($"截圖成功上傳: {body}");
+                        var ok = JsonConvert.DeserializeObject<ApiResponse<UploadResult>>(body);
+                        OnUploaded?.Invoke(ok);
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    Debug.Log("Upload Complete.");
+                    string body = www.downloadHandler != null ? www.downloadHandler.text : null;
 
-                    OnUploaded?.Invoke(true, actid + "_" + fileName);
+                    Debug.LogError($"截圖上傳失敗: {e.Message}");
+
+                    // 先嘗試從回傳的資料進行解析
+                    var err = JsonConvert.DeserializeObject<ApiResponse<UploadResult>>(body);
+                    if (err != null)
+                    {
+                        err.error_code = www.responseCode;
+                        OnUploaded?.Invoke(err);
+                        return;
+                    }
+
+                    // 解析失敗就使用通用錯誤
+                    OnUploaded?.Invoke(new ApiResponse<UploadResult>
+                    {
+                        status = false,
+                        msg = www.error,
+                        error_code = www.responseCode,
+                        data = null
+                    });
                 }
             }
         }
 
-        // 將擷取到的貼圖進行編碼、編號、加入清單、觸發事件與自動列印
-        private void RecordAndNotify(Texture2D captured)
-        {
-            shortData.bytes = captured.EncodeToJPG();
-            shortData.photoNum = shortDatas.Count + 1;
-            shortDatas.Add(shortData);
-
-            OnTaked?.Invoke(captured);
-
-            if (isAutoPrint)
-                Print();
-        }
-
-        // 取得截圖尺寸：優先使用設定值，否則回退到相機的 RT 或螢幕分辨率
+        /// <summary>
+        /// 取得RenderTexture大小：相機的 RenderTexture 或螢幕分辨率
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
         private void GetTargetSize(out int width, out int height)
         {
-            // 若已明確設定則直接使用
-            if (targetWidth > 0 && targetHeight > 0)
-            {
-                width = targetWidth;
-                height = targetHeight;
-                return;
-            }
-
             // 若相機已有 RT，使用其尺寸；否則使用螢幕尺寸
             if (cam != null && cam.targetTexture != null)
             {
@@ -377,11 +380,38 @@ namespace Starlite
         /// </summary>
         private void ClearTexture()
         {
-            if (tex != null)
+            if (TexSequenceds.Count > 0)
             {
-                Destroy(tex);
-                tex = null;
+                foreach (var texSequenced in TexSequenceds)
+                {
+                    Destroy(texSequenced.tex);
+                }
+
+                TexSequenceds.Clear();
             }
         }
     }
+}
+
+/// <summary>
+/// 通用回傳格式
+/// </summary>
+[Serializable]
+public class ApiResponse<T>
+{
+    public bool status;
+    public string msg;
+    public long error_code;
+    public T data;
+}
+
+/// <summary>
+/// 上傳截圖結果
+/// </summary>
+[Serializable]
+public class UploadResult
+{
+    public string session_uuid;
+    public string qr_url;
+    public int photo_count;
 }
