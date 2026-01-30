@@ -12,9 +12,10 @@ public class MouseAutoHide : MonoBehaviour
     public float delay = 3; // 鼠標靜止不動多久自動隱藏鼠標
     public float movementThreshold = 0.2f;  // 至少要移動多少距離才會顯示鼠標
     public Vector2 hidePosition = new Vector2(-100, -100);  // 指定鼠標移動的座標(左下角為0,0)
+    [Tooltip("是否鎖定鼠標位置")]
+    public bool isLockedVisible = true; // 是否鎖定鼠標
 
     private float time;
-    private bool isLockedVisible = true; // 是否鎖定鼠標
 
     private void Start()
     {
