@@ -16,10 +16,7 @@ namespace Starlite
         /// <summary>
         /// GET 請求
         /// </summary>
-        public static async UniTask<ApiResponse<T>> GetAsync<T>(
-            string url,
-            string token = null,
-            CancellationToken cancellationToken = default)
+        public static async UniTask<ApiResponse<T>> GetAsync<T>(string url, string token = null, CancellationToken cancellationToken = default)
         {
             using (UnityWebRequest request = UnityWebRequest.Get(url))
             {
@@ -31,11 +28,7 @@ namespace Starlite
         /// <summary>
         /// POST 請求
         /// </summary>
-        public static async UniTask<ApiResponse<T>> PostAsync<T>(
-            string url,
-            List<IMultipartFormSection> form,
-            string token = null,
-            CancellationToken cancellationToken = default)
+        public static async UniTask<ApiResponse<T>> PostAsync<T>(string url, List<IMultipartFormSection> form, string token = null, CancellationToken cancellationToken = default)
         {
             using (UnityWebRequest request = UnityWebRequest.Post(url, form))
             {
@@ -45,11 +38,45 @@ namespace Starlite
         }
 
         /// <summary>
+        /// 下載圖片
+        /// </summary>
+        public static async UniTask<Texture2D> DownloadTextureAsync(string url, CancellationToken cancellationToken = default)
+        {
+            using (UnityWebRequest request = UnityWebRequestTexture.GetTexture(url))
+            {
+                try
+                {
+                    await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
+
+                    if (request.result == UnityWebRequest.Result.Success)
+                    {
+                        Texture2D texture = DownloadHandlerTexture.GetContent(request);
+                        Debug.Log($"圖片下載成功: {url}");
+                        return texture;
+                    }
+                    else
+                    {
+                        Debug.LogError($"圖片下載失敗: {request.error}");
+                        return null;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Debug.Log("圖片下載已取消");
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"圖片下載異常: {ex.Message}\n{ex.StackTrace}");
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>
         /// 核心請求發送方法
         /// </summary>
-        private static async UniTask<ApiResponse<T>> SendRequestAsync<T>(
-            UnityWebRequest request,
-            CancellationToken cancellationToken)
+        private static async UniTask<ApiResponse<T>> SendRequestAsync<T>(UnityWebRequest request, CancellationToken cancellationToken)
         {
             try
             {
@@ -101,7 +128,7 @@ namespace Starlite
         {
             if (!string.IsNullOrEmpty(token))
             {
-                request.SetRequestHeader("X-Tablet-Token", token);
+                request.SetRequestHeader("Authorization", token);
             }
         }
     }
